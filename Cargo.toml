@@ -1,0 +1,55 @@
+[package]
+name = "sdf-mask-tool"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+
+# 这个工具的瓶颈全在像素算法（距离变换、逐像素合成）。
+# debug 构建下 1K 烘焙要 900ms 以上，画一笔就卡顿；优化后约 100ms。
+# 所以 dev 也开优化，只保留调试信息。
+[profile.dev]
+opt-level = 2
+debug = true
+# rustc 1.99.1 在增量模式下编 codegen 单元时会让编译器自己 panic（ICE，
+# 落在 rustc_codegen_llvm::back::lto）。关掉增量即可绕开，全量重编的代价
+# 只有几秒，比踩 ICE 划算。编译器修好后可以删掉这两行。
+incremental = false
+
+[profile.dev.package."*"]
+opt-level = 3
+# 依赖不需要调试信息，关掉能显著缩小 PDB、也避开链接器处理损坏 PDB 的问题。
+debug = false
+
+[profile.test]
+incremental = false
+
+[lib]
+name = "sdf_mask_tool"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sdf-mask-tool"
+path = "src/main.rs"
+
+[dependencies]
+eframe = { version = "0.37.0", default-features = false, features = ["glow", "default_fonts", "system_fonts"] }
+egui = "0.37.0"
+env_logger = "0.11.11"
+# 二进制 FBX 的数组可以是 zlib 压缩的，解析时要解压。
+# 这个包本来就在依赖树里（image 的传递依赖），本地已经编译过，
+# 只是之前没直接声明——跨 crate 用必须先声明，否则报 unresolved module。
+flate2 = "1.1.11"
+image = "0.25.10"
+log = "0.4.35"
+rayon = "1.12.0"
+rfd = "0.18.0"
+ron = "0.12.3"
+serde = { version = "1.0.229", features = ["derive"] }
+zip = { version = "9.4.2", default-features = false, features = ["deflate"] }
+
+# 取窗口句柄后调用 DwmSetWindowAttribute 让标题栏跟随深色主题。
+# raw-window-handle 已是 eframe 的传递依赖，这里显式声明以便直接引用其类型。
+raw-window-handle = "0.6.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }
